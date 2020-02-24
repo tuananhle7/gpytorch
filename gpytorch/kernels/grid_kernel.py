@@ -6,7 +6,7 @@ import torch
 from torch import Tensor
 
 from .. import settings
-from ..lazy import KroneckerProductLazyTensor, ToeplitzLazyTensor, cat, delazify
+from ..lazy import KroneckerProductLazyTensor, ToeplitzLazyTensor, delazify
 from ..utils.grid import convert_legacy_grid, create_data_from_grid
 from .kernel import Kernel
 
@@ -116,31 +116,29 @@ class GridKernel(Kernel):
             # Can exploit Toeplitz structure if grid points in each dimension are equally
             # spaced and using a translation-invariant kernel
             if settings.use_toeplitz.on():
-                first_grid_point = [proj[0].unsqueeze(0) for proj in grid]
-                covars = [
-                    self.base_kernel(first, proj, last_dim_is_batch=False, **params)
-                    for first, proj in zip(first_grid_point, grid)
-                ]  # Each entry i contains a 1 x grid_size[i] covariance matrix
-                covars = [delazify(c) for c in covars]
+                first_grid_point = torch.stack([proj[0].unsqueeze(0) for proj in grid], dim=-1)
+                full_grid = torch.stack(grid, dim=-1)
+                covars = delazify(self.base_kernel(first_grid_point, full_grid, last_dim_is_batch=True, **params))
 
                 if last_dim_is_batch:
                     # Toeplitz expects batches of columns so we concatenate the
                     # 1 x grid_size[i] tensors together
                     # Note that this requires all the dimensions to have the same number of grid points
-                    covar = ToeplitzLazyTensor(torch.cat(covars, dim=-2))
+                    covar = ToeplitzLazyTensor(covars)
                 else:
                     # Non-batched ToeplitzLazyTensor expects a 1D tensor, so we squeeze out the row dimension
-                    covars = [ToeplitzLazyTensor(c.squeeze(-2)) for c in covars]
+                    covars = covars.squeeze(-2)  # Get rid of the dimension corresponding to the first point
+                    covars = [ToeplitzLazyTensor(covars[..., i, :]) for i in range(covars.size(-2))]
                     # Due to legacy reasons, KroneckerProductLazyTensor(A, B, C) is actually (C Kron B Kron A)
                     covar = KroneckerProductLazyTensor(*covars[::-1])
             else:
-                covars = [
-                    self.base_kernel(proj, proj, last_dim_is_batch=False, **params) for proj in grid
-                ]  # Each entry i contains a grid_size[i] x grid_size[i] covariance matrix
+                full_grid = torch.stack(grid, dim=-1)
+                covars = self.base_kernel(full_grid, full_grid, last_dim_is_batch=True, **params)
                 if last_dim_is_batch:
                     # Note that this requires all the dimensions to have the same number of grid points
-                    covar = cat([c.unsqueeze(-3) for c in covars], dim=-3)
+                    covar = covars
                 else:
+                    covars = [covars[..., i, :, :] for i in range(covars.size(-3))]
                     covar = KroneckerProductLazyTensor(*covars[::-1])
 
             if not self.training:
