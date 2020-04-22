@@ -90,9 +90,13 @@ class CosineKernel(Kernel):
 
         self.initialize(raw_period_length=self.raw_period_length_constraint.inverse_transform(value))
 
-    def forward(self, x1, x2, **params):
-        x1_ = x1.div(self.period_length)
-        x2_ = x2.div(self.period_length)
+    def forward(self, x1, x2, motor_noise=None, **params):
+        period_length = self.period_length
+        if motor_noise is not None:
+            motor_noise_value, _ = motor_noise
+            period_length = period_length + motor_noise_value
+        x1_ = x1.div(period_length)
+        x2_ = x2.div(period_length)
         diff = self.covar_dist(x1_, x2_, **params)
         res = torch.cos(diff.mul(math.pi))
         return res

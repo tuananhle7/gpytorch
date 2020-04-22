@@ -450,10 +450,16 @@ class AdditiveKernel(Kernel):
         super(AdditiveKernel, self).__init__()
         self.kernels = ModuleList(kernels)
 
-    def forward(self, x1, x2, diag=False, **params):
+    def forward(self, x1, x2, diag=False, motor_noise=None, **params):
+        if motor_noise is not None:
+            _, motor_noise_subs = motor_noise
+        else:
+            motor_noise_subs = [None] * len(self.kernels)
+
         res = ZeroLazyTensor() if not diag else 0
-        for kern in self.kernels:
-            next_term = kern(x1, x2, diag=diag, **params)
+        for kern, motor_noise_sub in zip(self.kernels, motor_noise_subs):
+            next_term = kern(x1, x2, diag=diag,
+                             motor_noise=motor_noise_sub, **params)
             if not diag:
                 res = res + lazify(next_term)
             else:
@@ -496,20 +502,27 @@ class ProductKernel(Kernel):
         super(ProductKernel, self).__init__()
         self.kernels = ModuleList(kernels)
 
-    def forward(self, x1, x2, diag=False, **params):
+    def forward(self, x1, x2, diag=False, motor_noise=None, **params):
+        if motor_noise is not None:
+            _, motor_noise_subs = motor_noise
+        else:
+            motor_noise_subs = [None] * len(self.kernels)
+
         x1_eq_x2 = torch.equal(x1, x2)
 
         if not x1_eq_x2:
             # If x1 != x2, then we can't make a MulLazyTensor because the kernel won't necessarily be square/symmetric
-            res = delazify(self.kernels[0](x1, x2, diag=diag, **params))
+            res = delazify(self.kernels[0](x1, x2, diag=diag,
+                                           motor_noise=motor_noise_subs[0], **params))
         else:
-            res = self.kernels[0](x1, x2, diag=diag, **params)
+            res = self.kernels[0](x1, x2, diag=diag,
+                                  motor_noise=motor_noise_subs[0], **params)
 
             if not diag:
                 res = lazify(res)
 
-        for kern in self.kernels[1:]:
-            next_term = kern(x1, x2, diag=diag, **params)
+        for kern, motor_noise_sub in zip(self.kernels[1:], motor_noise_subs[1:]):
+            next_term = kern(x1, x2, diag=diag, motor_noise=motor_noise_sub, **params)
             if not x1_eq_x2:
                 # Again delazify if x1 != x2
                 res = res * delazify(next_term)

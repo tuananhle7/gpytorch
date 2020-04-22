@@ -85,12 +85,16 @@ class MaternKernel(Kernel):
         super(MaternKernel, self).__init__(**kwargs)
         self.nu = nu
 
-    def forward(self, x1, x2, diag=False, **params):
+    def forward(self, x1, x2, diag=False, motor_noise=None, **params):
+        lengthscale = self.lengthscale
+        if motor_noise is not None:
+            motor_noise_value, _ = motor_noise
+            lengthscale = lengthscale + motor_noise_value
         if x1.requires_grad or x2.requires_grad or (self.ard_num_dims is not None and self.ard_num_dims > 1) or diag:
             mean = x1.reshape(-1, x1.size(-1)).mean(0)[(None,) * (x1.dim() - 1)]
 
-            x1_ = (x1 - mean).div(self.lengthscale)
-            x2_ = (x2 - mean).div(self.lengthscale)
+            x1_ = (x1 - mean).div(lengthscale)
+            x2_ = (x2 - mean).div(lengthscale)
             distance = self.covar_dist(x1_, x2_, diag=diag, **params)
             exp_component = torch.exp(-math.sqrt(self.nu * 2) * distance)
 
@@ -102,5 +106,5 @@ class MaternKernel(Kernel):
                 constant_component = (math.sqrt(5) * distance).add(1).add(5.0 / 3.0 * distance ** 2)
             return constant_component * exp_component
         return MaternCovariance().apply(
-            x1, x2, self.lengthscale, self.nu, lambda x1, x2: self.covar_dist(x1, x2, **params)
+            x1, x2, lengthscale, self.nu, lambda x1, x2: self.covar_dist(x1, x2, **params)
         )
