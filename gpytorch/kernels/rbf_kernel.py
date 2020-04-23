@@ -72,7 +72,13 @@ class RBFKernel(Kernel):
         lengthscale = self.lengthscale
         if motor_noise is not None:
             motor_noise_value, _ = motor_noise
-            lengthscale = lengthscale + motor_noise_value
+            transformed_motor_noise_value = (
+                self.raw_lengthscale_constraint.transform(
+                    self.raw_lengthscale.detach() + motor_noise_value
+                ) -
+                lengthscale.detach()
+            )
+            lengthscale = lengthscale + transformed_motor_noise_value
         if x1.requires_grad or x2.requires_grad or (self.ard_num_dims is not None and self.ard_num_dims > 1) or diag:
             x1_ = x1.div(lengthscale)
             x2_ = x2.div(lengthscale)

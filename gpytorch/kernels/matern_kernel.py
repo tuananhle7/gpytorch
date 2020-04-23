@@ -89,7 +89,13 @@ class MaternKernel(Kernel):
         lengthscale = self.lengthscale
         if motor_noise is not None:
             motor_noise_value, _ = motor_noise
-            lengthscale = lengthscale + motor_noise_value
+            transformed_motor_noise_value = (
+                self.raw_lengthscale_constraint.transform(
+                    self.raw_lengthscale.detach() + motor_noise_value
+                ) -
+                lengthscale.detach()
+            )
+            lengthscale = lengthscale + transformed_motor_noise_value
         if x1.requires_grad or x2.requires_grad or (self.ard_num_dims is not None and self.ard_num_dims > 1) or diag:
             mean = x1.reshape(-1, x1.size(-1)).mean(0)[(None,) * (x1.dim() - 1)]
 

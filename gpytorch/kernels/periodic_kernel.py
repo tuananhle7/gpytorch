@@ -111,8 +111,23 @@ class PeriodicKernel(Kernel):
         period_length = self.period_length
         if motor_noise is not None:
             [lengthscale_motor_noise, period_length_notor_noise], _ = motor_noise
-            lengthscale = lengthscale + lengthscale_motor_noise
-            period_length = period_length + period_length_notor_noise
+
+            lengthscale_noise = (
+                self.raw_lengthscale_constraint.transform(
+                    self.raw_lengthscale.detach() + lengthscale_motor_noise
+                ) -
+                lengthscale.detach()
+            )
+            lengthscale = lengthscale + lengthscale_noise
+
+            period_length_noise = (
+                self.raw_period_length_constraint.transform(
+                    self.raw_period_length.detach() + period_length_notor_noise
+                ) -
+                period_length.detach()
+            )
+            period_length = period_length + period_length_noise
+
         x1_ = x1.div(period_length)
         x2_ = x2.div(period_length)
         diff = self.covar_dist(x1_, x2_, diag=diag, **params)

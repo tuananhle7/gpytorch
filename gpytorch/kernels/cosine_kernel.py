@@ -94,7 +94,14 @@ class CosineKernel(Kernel):
         period_length = self.period_length
         if motor_noise is not None:
             motor_noise_value, _ = motor_noise
-            period_length = period_length + motor_noise_value
+            transformed_motor_noise_value = (
+                self.raw_period_length_constraint.transform(
+                    self.raw_period_length.detach() + motor_noise_value
+                ) -
+                period_length.detach()
+            )
+            period_length = period_length + transformed_motor_noise_value
+
         x1_ = x1.div(period_length)
         x2_ = x2.div(period_length)
         diff = self.covar_dist(x1_, x2_, **params)

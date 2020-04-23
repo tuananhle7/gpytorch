@@ -98,7 +98,13 @@ class ScaleKernel(Kernel):
                                                motor_noise=motor_noise_sub, **params)
         outputscales = self.outputscale
         if motor_noise_value is not None:
-            outputscales = outputscales + motor_noise_value
+            transformed_motor_noise_value = (
+                self.raw_outputscale_constraint.transform(
+                    self.raw_outputscale.detach() + motor_noise_value
+                ) -
+                outputscales.detach()
+            )
+            outputscales = outputscales + transformed_motor_noise_value
 
         if last_dim_is_batch:
             outputscales = outputscales.unsqueeze(-1)
