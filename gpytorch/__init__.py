@@ -30,7 +30,7 @@ from .lazy import cat, delazify, lazify
 from .mlls import ExactMarginalLogLikelihood
 from .module import Module
 
-__version__ = "1.0.1_motor_noise"
+__version__ = "1.0.1_motor_noise_raw"
 
 __all__ = [
     # Submodules
